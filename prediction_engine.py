@@ -1,103 +1,38 @@
-import os
-from pathlib import Path
 import pandas as pd
+import os
+from sklearn.cluster import KMeans
+import numpy as np
 import matplotlib.pyplot as plt
 
-HYDROPATHY_INDEX = {
-    "A": 1.8,
-    "C": 2.5,
-    "D": -3.5,
-    "E": -3.5,
-    "F": 2.8,
-    "G": -0.4,
-    "H": -3.2,
-    "I": 4.5,
-    "K": -3.9,
-    "L": 3.8,
-    "M": 1.9,
-    "N": -3.5,
-    "P": -1.6,
-    "Q": -3.5,
-    "R": -4.5,
-    "S": -0.8,
-    "T": -0.7,
-    "V": 4.2,
-    "W": -0.9,
-    "Y": -1.3,
-}
+# Get the directory of the current file
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
+# Load the CSV file
+df = pd.read_csv(os.path.join(current_dir, 'leukemia_gene_expression.csv'))
 
-def get_fasta_file():
-    """Find and return the path to the FASTA file in the current directory."""
-    current_dir = Path(__file__).parent
-    
-    # Look for files with .fasta or .fa extension
-    fasta_files = list(current_dir.glob("*.fasta")) + list(current_dir.glob("*.fa"))
-    
-    if not fasta_files:
-        raise FileNotFoundError("No FASTA file found in the directory")
-    
-    if len(fasta_files) > 1:
-        print(f"Multiple FASTA files found: {[f.name for f in fasta_files]}")
-        print(f"Using: {fasta_files[0].name}")
-    
-    return fasta_files[0]
+# --- USE ALL COLUMNS FOR CLUSTERING ---
+# Convert entire dataframe (all 1000 columns) into a matrix
+X = df.values   # shape: (num_samples, 1000)
 
-def read_fasta(file_path):
-    """Read and parse a FASTA file."""
-    sequences = {}
-    current_header = None
-    current_sequence = []
-    
-    with open(file_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('>'):
-                if current_header:
-                    sequences[current_header] = ''.join(current_sequence)
-                current_header = line[1:]
-                current_sequence = []
-            else:
-                current_sequence.append(line)
-        
-    if current_header:
-        sequences[current_header] = ''.join(current_sequence)
+# --- RUN K-MEANS ---
+kmeans = KMeans(n_clusters=2, random_state=0, n_init="auto")
+kmeans.fit(X)
 
-    return sequences
+# Add cluster labels to dataframe
+df['Cluster'] = kmeans.labels_
 
+# --- OPTIONAL SCATTERPLOT ---
+# Use first two columns for plotting only (since you can't visualize 1000 dimensions)
+plt.scatter(df.iloc[:,0], df.iloc[:,1], c=df['Cluster'], cmap='viridis')
+plt.xlabel('Column 1')
+plt.ylabel('Column 2')
+plt.title('K-Means Clustering Using All 1000 Gene Expression Features')
+plt.show()
 
-def predict_solubility(sequences):
-    """
-    Predict solubility for each sequence using a simple Kyte-Doolittle
-    hydropathy threshold: average index < 0 -> soluble else insoluble.
-    """
-    records = []
-    for header, seq in sequences.items():
-        scores = [HYDROPATHY_INDEX.get(residue.upper()) for residue in seq]
-        scores = [s for s in scores if s is not None]
-        avg_score = sum(scores) / len(scores) if scores else 0.0
-        soluble = avg_score < 0
-        records.append(
-            {
-                "header": header,
-                "length": len(seq),
-                "avg_hydropathy": avg_score,
-                "predicted_solubility": "soluble" if soluble else "insoluble",
-            }
-        )
-    return pd.DataFrame(records)
+# --- DISPLAY THIRD COLUMN ---
+print("Values in third column:")
+print(df.iloc[:, 2].to_string(index=False))
 
-
-def plot_feature_distribution(file_path):
-    """Plot the feature distribution of the dataset."""
-    hist = file_path.hist(bins=15, figsize=(25, 15))
-    plt.show()
-
-if __name__ == "__main__":
-    fasta_file = get_fasta_file()  # Get the FASTA file path
-    sequences = read_fasta(fasta_file)  # Read the FASTA file
-    solubility_df = predict_solubility(sequences)
-    print(solubility_df[["header", "predicted_solubility", "avg_hydropathy"]])
-
-    # Optional: visualize average hydropathy distribution
-    plot_feature_distribution(solubility_df[["avg_hydropathy"]])
+# --- AVERAGE OF THIRD COLUMN ---
+average = df.iloc[:, 2].mean()
+print("Average of third column:", average)
