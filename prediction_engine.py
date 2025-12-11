@@ -71,7 +71,7 @@ def animate_hierarchical(coords_2d: np.ndarray, history: List[np.ndarray], save:
         fig,
         update,
         frames=len(frame_sequence),
-        interval=800,  # ms per frame
+        interval=10,  # ms per frame
         blit=True,
         repeat=False,
     )
